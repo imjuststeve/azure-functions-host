@@ -23,6 +23,10 @@ namespace Microsoft.Azure.WebJobs.Script.WebHost.Diagnostics
         private readonly IDebugStateProvider _debugStateProvider;
         private readonly IScriptEventManager _eventManager;
         private readonly IExternalScopeProvider _scopeProvider;
+        private readonly string _subscriptionId;
+        private readonly string _appName;
+        private readonly string _runtimeSiteName;
+        private readonly string _slotName;
 
         public SystemLogger(string hostInstanceId, string categoryName, IEventGenerator eventGenerator, IEnvironment environment,
             IDebugStateProvider debugStateProvider, IScriptEventManager eventManager, IExternalScopeProvider scopeProvider)
@@ -37,6 +41,11 @@ namespace Microsoft.Azure.WebJobs.Script.WebHost.Diagnostics
             _debugStateProvider = debugStateProvider;
             _eventManager = eventManager;
             _scopeProvider = scopeProvider;
+            // TODO: need to ensure these values are reset when specialized
+            _subscriptionId = _environment.GetSubscriptionId() ?? string.Empty;
+            _appName = _environment.GetAzureWebsiteUniqueSlotName() ?? string.Empty;
+            _runtimeSiteName = _environment.GetRuntimeSiteName() ?? string.Empty;
+            _slotName = _environment.GetSlotName() ?? string.Empty;
         }
 
         public IDisposable BeginScope<TState>(TState state) => _scopeProvider.Push(state);
@@ -67,7 +76,6 @@ namespace Microsoft.Azure.WebJobs.Script.WebHost.Diagnostics
         {
             // propagate special exceptions through the EventManager
             var stateProps = state as IEnumerable<KeyValuePair<string, object>> ?? new Dictionary<string, object>();
-
             string source = _categoryName ?? Utility.GetStateValueOrDefault<string>(stateProps, ScriptConstants.LogPropertySourceKey);
             if (exception is FunctionIndexingException && _eventManager != null)
             {
@@ -80,33 +88,27 @@ namespace Microsoft.Azure.WebJobs.Script.WebHost.Diagnostics
                 return;
             }
 
-            string formattedMessage = formatter?.Invoke(state, exception);
-
             // If we don't have a message, there's nothing to log.
+            string formattedMessage = formatter?.Invoke(state, exception);
             if (string.IsNullOrEmpty(formattedMessage))
             {
                 return;
             }
 
-            IDictionary<string, object> scopeProps = _scopeProvider.GetScopeDictionary();
-
             // Apply standard event properties
             // Note: we must be sure to default any null values to empty string
             // otherwise the ETW event will fail to be persisted (silently)
-            string subscriptionId = _environment.GetSubscriptionId() ?? string.Empty;
-            string appName = _environment.GetAzureWebsiteUniqueSlotName() ?? string.Empty;
-            string summary = Sanitizer.Sanitize(formattedMessage) ?? string.Empty;
-            string innerExceptionType = string.Empty;
-            string innerExceptionMessage = string.Empty;
+            var scopeProps = _scopeProvider.GetScopeDictionary();
+            string summary = formattedMessage ?? string.Empty;
             string functionName = _functionName ?? Utility.ResolveFunctionName(stateProps, scopeProps) ?? string.Empty;
             string eventName = !string.IsNullOrEmpty(eventId.Name) ? eventId.Name : Utility.GetStateValueOrDefault<string>(stateProps, ScriptConstants.LogPropertyEventNameKey) ?? string.Empty;
             string functionInvocationId = Utility.GetValueFromScope(scopeProps, ScriptConstants.LogPropertyFunctionInvocationIdKey) ?? string.Empty;
             string hostInstanceId = _hostInstanceId;
             string activityId = Utility.GetStateValueOrDefault<string>(stateProps, ScriptConstants.LogPropertyActivityIdKey) ?? string.Empty;
-            string runtimeSiteName = _environment.GetRuntimeSiteName() ?? string.Empty;
-            string slotName = _environment.GetSlotName() ?? string.Empty;
 
             // Populate details from the exception.
+            string innerExceptionType = string.Empty;
+            string innerExceptionMessage = string.Empty;
             string details = string.Empty;
             if (exception != null)
             {
@@ -119,7 +121,7 @@ namespace Microsoft.Azure.WebJobs.Script.WebHost.Diagnostics
                 innerExceptionMessage = innerExceptionMessage ?? string.Empty;
             }
 
-            _eventGenerator.LogFunctionTraceEvent(logLevel, subscriptionId, appName, functionName, eventName, source, details, summary, innerExceptionType, innerExceptionMessage, functionInvocationId, hostInstanceId, activityId, runtimeSiteName, slotName);
+            _eventGenerator.LogFunctionTraceEvent(logLevel, _subscriptionId, _appName, functionName, eventName, source, details, summary, innerExceptionType, innerExceptionMessage, functionInvocationId, hostInstanceId, activityId, _runtimeSiteName, _slotName);
         }
     }
 }
