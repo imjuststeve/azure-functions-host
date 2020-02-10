@@ -51,7 +51,6 @@ namespace Microsoft.Azure.WebJobs.Script.Tests.Middleware
             await middleware.Invoke(httpContext, next);
 
             Assert.True(nextInvoked);
-            // TODO - assertions for easy auth settings passed in? or that easyauth succeeded generally?
         }
 
         [Fact]
@@ -61,7 +60,11 @@ namespace Microsoft.Azure.WebJobs.Script.Tests.Middleware
             // should return 401 unauthorized
             var envVars = new Dictionary<string, string>()
             {
-                { EnvironmentSettingNames.ContainerName, "foo" },
+                { EnvironmentSettingNames.EasyAuthClientId, "23jekfs" },
+                { EnvironmentSettingNames.EasyAuthEnabled, "true" },
+                { EnvironmentSettingNames.ContainerName, "linuxconsumption" },
+                { EnvironmentSettingNames.EasyAuthSigningKey, "2892B532EB2C17AC3DD2009CBBF9C9CA7A3F9189FA4241789A4E26DE859077C0" },
+                { EnvironmentSettingNames.EasyAuthEncryptionKey, "723249EF012A5FCE5946F65FBE7D6CB209331612E651B638C2F46BF9DB39F530" }
             };
             var testEnv = new TestEnvironment(envVars);
             var easyAuthSettings = new HostEasyAuthOptions
@@ -70,7 +73,16 @@ namespace Microsoft.Azure.WebJobs.Script.Tests.Middleware
                 SiteAuthEnabled = true
             };
 
-            // is this how to test easyauth?
+            var easyAuthOptions = new OptionsWrapper<HostEasyAuthOptions>(easyAuthSettings);
+            bool nextInvoked = false;
+
+            RequestDelegate next = (ctxt) =>
+            {
+                nextInvoked = true;
+                ctxt.Response.StatusCode = (int)HttpStatusCode.Accepted;
+                return Task.CompletedTask;
+            };
+
             var claims = new List<Claim>
                 {
                     new Claim(SecurityConstants.AuthLevelClaimType, AuthorizationLevel.Function.ToString())
@@ -91,16 +103,21 @@ namespace Microsoft.Azure.WebJobs.Script.Tests.Middleware
                     services.ConfigureOptions<HostEasyAuthOptionsSetup>();
                     services.AddTransient<IConfigureOptions<HostEasyAuthOptions>>(factory => new TestHostEasyAuthOptionsSetup(easyAuthSettings));
                     services.TryAddSingleton<IJobHostMiddlewarePipeline, DefaultMiddlewarePipeline>();
-                    // TODO - equivalent to services.AddCors for easyauth (have to write..? or find in pkg)
                     services.TryAddEnumerable(ServiceDescriptor.Singleton<IJobHostHttpMiddleware, JobHostEasyAuthMiddleware>());
                 });
 
+            var middleware = new JobHostEasyAuthMiddleware(easyAuthOptions);
             var server = new TestServer(builder); // TODO - for now need custom server bc they're only getting env vars & not config?
 
-            var client = server.CreateClient();
-            var response = await client.GetAsync(string.Empty);
-            Assert.Equal(response.StatusCode.ToString(), "401");
-           // Assert.Equal("test easy auth", await response.Content.ReadAsStringAsync());
+          //  var client = server.CreateClient();
+            var httpcontext = new DefaultHttpContext() { User = user };
+            await middleware.Invoke(httpcontext, next);
+
+            Assert.False(nextInvoked);
+
+            // var response = await client.GetAsync(string.Empty);
+            //  Assert.Equal(response.StatusCode.ToString(), "401");
+            // Assert.Equal("test easy auth", await response.Content.ReadAsStringAsync());
         }
 
         // TODO - auth failure
@@ -111,7 +128,7 @@ namespace Microsoft.Azure.WebJobs.Script.Tests.Middleware
 
             public TestHostEasyAuthOptionsSetup(HostEasyAuthOptions options)
             {
-                options = _options;
+                _options = options;
             }
 
             public void Configure(HostEasyAuthOptions options)

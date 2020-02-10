@@ -17,7 +17,7 @@ namespace Microsoft.Azure.WebJobs.Script.WebHost.Middleware
     {
         private RequestDelegate _invoke;
 
-        public JobHostEasyAuthMiddleware(IOptions<HostEasyAuthOptions> hostEasyAuthOptions) // TODO - remove options and directly pass in the easyauthsettings?
+        public JobHostEasyAuthMiddleware(IOptions<HostEasyAuthOptions> hostEasyAuthOptions)
         {
             RequestDelegate contextNext = async context =>
             {
@@ -28,7 +28,7 @@ namespace Microsoft.Azure.WebJobs.Script.WebHost.Middleware
             };
             if (hostEasyAuthOptions.Value.SiteAuthEnabled)
             {
-                var easyAuthMiddleware = new AppServiceMiddleware(contextNext);
+                var easyAuthMiddleware = new EasyAuthMiddleware(contextNext, hostEasyAuthOptions.Value.Configuration);
                 _invoke = easyAuthMiddleware.InvokeAsync;
             }
             else
