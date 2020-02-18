@@ -499,7 +499,7 @@ namespace Microsoft.Azure.WebJobs.Script
             return null;
         }
 
-        public static string GetAssemblyNameFromMetadata(Description.FunctionMetadata metadata, string suffix)
+        public static string GetAssemblyNameFromMetadata(FunctionMetadata metadata, string suffix)
         {
             return AssemblyPrefix + metadata.Name + AssemblySeparator + suffix.GetHashCode().ToString();
         }

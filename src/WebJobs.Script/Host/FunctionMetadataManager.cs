@@ -17,21 +17,23 @@ namespace Microsoft.Azure.WebJobs.Script
 {
     public class FunctionMetadataManager : IFunctionMetadataManager
     {
-        private const string _functionConfigurationErrorMessage = "Unable to determine the primary function script.Make sure atleast one script file is present.Try renaming your entry point script to 'run' or alternatively you can specify the name of the entry point script explicitly by adding a 'scriptFile' property to your function metadata.";
+        private const string _functionConfigurationErrorMessage = "Unable to determine the primary function script. Make sure atleast one script file is present. Try renaming your entry point script to 'run' or alternatively you can specify the name of the entry point script explicitly by adding a 'scriptFile' property to your function metadata.";
         private readonly bool _isHttpWorker;
         private readonly Lazy<ImmutableArray<FunctionMetadata>> _functionMetadataArray;
         private readonly IOptions<ScriptJobHostOptions> _scriptOptions;
         private readonly IFunctionMetadataProvider _functionMetadataProvider;
+        private readonly IEnumerable<IFunctionIndexer> _indexers;
         private readonly ILogger _logger;
         private Dictionary<string, ICollection<string>> _functionErrors = new Dictionary<string, ICollection<string>>();
 
-        public FunctionMetadataManager(IOptions<ScriptJobHostOptions> scriptOptions, IFunctionMetadataProvider functionMetadataProvider, IOptions<HttpWorkerOptions> httpWorkerOptions, ILoggerFactory loggerFactory)
+        public FunctionMetadataManager(IOptions<ScriptJobHostOptions> scriptOptions, IFunctionMetadataProvider functionMetadataProvider, IEnumerable<IFunctionIndexer> indexers, IOptions<HttpWorkerOptions> httpWorkerOptions, ILoggerFactory loggerFactory)
         {
             _scriptOptions = scriptOptions;
             _functionMetadataProvider = functionMetadataProvider;
             _logger = loggerFactory.CreateLogger(LogCategories.Startup);
             _functionMetadataArray = new Lazy<ImmutableArray<FunctionMetadata>>(LoadFunctionMetadata);
             _isHttpWorker = httpWorkerOptions.Value.Description != null;
+            _indexers = indexers;
         }
 
         public ImmutableArray<FunctionMetadata> Functions => _functionMetadataArray.Value;
@@ -48,6 +50,14 @@ namespace Microsoft.Azure.WebJobs.Script
 
             List<FunctionMetadata> functionMetadataList = _functionMetadataProvider.GetFunctionMetadata().ToList();
             _functionErrors = _functionMetadataProvider.FunctionErrors.ToDictionary(kvp => kvp.Key, kvp => (ICollection<string>)kvp.Value.ToList());
+
+            // TODO: May want to move to provider instead, so it's included everywhere
+            // Load metadata and errors from custom function indexers
+            if (_indexers.Count() > 0)
+            {
+                functionMetadataList.AddRange(GetMetadataFromCustomIndexers());
+                _functionErrors.AddRange(GetErrorsFromCustomIndexers());
+            }
 
             // Validate
             foreach (FunctionMetadata functionMetadata in functionMetadataList.ToList())
@@ -88,6 +98,30 @@ namespace Microsoft.Azure.WebJobs.Script
                 return false;
             }
             return true;
+        }
+
+        private List<FunctionMetadata> GetMetadataFromCustomIndexers()
+        {
+            var metadataList = new List<FunctionMetadata>();
+
+            foreach (var indexer in _indexers)
+            {
+                metadataList.AddRange(indexer.GetFunctionMetadata());
+            }
+
+            return metadataList;
+        }
+
+        private Dictionary<string, ICollection<string>> GetErrorsFromCustomIndexers()
+        {
+            var errorList = new Dictionary<string, ICollection<string>>();
+
+            foreach (var indexer in _indexers)
+            {
+                indexer.GetFunctionErrors().ToList().ForEach(kvp => errorList[kvp.Key] = kvp.Value);
+            }
+
+            return errorList;
         }
     }
 }

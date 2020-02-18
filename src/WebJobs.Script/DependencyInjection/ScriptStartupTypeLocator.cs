@@ -61,6 +61,7 @@ namespace Microsoft.Azure.WebJobs.Script.DependencyInjection
 
         public async Task<IEnumerable<Type>> GetExtensionsStartupTypesAsync()
         {
+            // TODO: take a look at this
             string binPath;
             var functionMetadataCollection = _functionMetadataProvider.GetFunctionMetadata(forceRefresh: true);
             HashSet<string> bindingsSet = null;
