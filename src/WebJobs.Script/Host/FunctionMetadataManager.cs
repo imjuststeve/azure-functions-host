@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.Azure.WebJobs.Logging;
+using Microsoft.Azure.WebJobs.Script.Abstractions;
 using Microsoft.Azure.WebJobs.Script.Description;
 using Microsoft.Azure.WebJobs.Script.Diagnostics.Extensions;
 using Microsoft.Azure.WebJobs.Script.Workers.Http;
@@ -22,18 +23,18 @@ namespace Microsoft.Azure.WebJobs.Script
         private readonly Lazy<ImmutableArray<FunctionMetadata>> _functionMetadataArray;
         private readonly IOptions<ScriptJobHostOptions> _scriptOptions;
         private readonly IFunctionMetadataProvider _functionMetadataProvider;
-        private readonly IEnumerable<IFunctionIndexer> _indexers;
+        private readonly IEnumerable<IFunctionProvider> _functionProviders;
         private readonly ILogger _logger;
         private Dictionary<string, ICollection<string>> _functionErrors = new Dictionary<string, ICollection<string>>();
 
-        public FunctionMetadataManager(IOptions<ScriptJobHostOptions> scriptOptions, IFunctionMetadataProvider functionMetadataProvider, IEnumerable<IFunctionIndexer> indexers, IOptions<HttpWorkerOptions> httpWorkerOptions, ILoggerFactory loggerFactory)
+        public FunctionMetadataManager(IOptions<ScriptJobHostOptions> scriptOptions, IFunctionMetadataProvider functionMetadataProvider, IEnumerable<IFunctionProvider> functionProviders, IOptions<HttpWorkerOptions> httpWorkerOptions, ILoggerFactory loggerFactory)
         {
             _scriptOptions = scriptOptions;
             _functionMetadataProvider = functionMetadataProvider;
             _logger = loggerFactory.CreateLogger(LogCategories.Startup);
             _functionMetadataArray = new Lazy<ImmutableArray<FunctionMetadata>>(LoadFunctionMetadata);
             _isHttpWorker = httpWorkerOptions.Value.Description != null;
-            _indexers = indexers;
+            _functionProviders = functionProviders;
         }
 
         public ImmutableArray<FunctionMetadata> Functions => _functionMetadataArray.Value;
@@ -51,12 +52,11 @@ namespace Microsoft.Azure.WebJobs.Script
             List<FunctionMetadata> functionMetadataList = _functionMetadataProvider.GetFunctionMetadata().ToList();
             _functionErrors = _functionMetadataProvider.FunctionErrors.ToDictionary(kvp => kvp.Key, kvp => (ICollection<string>)kvp.Value.ToList());
 
-            // TODO: May want to move to provider instead, so it's included everywhere
-            // Load metadata and errors from custom function indexers
-            if (_indexers.Count() > 0)
+            // Load metadata and errors from custom function providers
+            if (_functionProviders.Count() > 0)
             {
-                functionMetadataList.AddRange(GetMetadataFromCustomIndexers());
-                _functionErrors.AddRange(GetErrorsFromCustomIndexers());
+                functionMetadataList.AddRange(GetMetadataFromCustomProviders());
+                _functionErrors.AddRange(GetErrorsFromCustomProviders());
             }
 
             // Validate
@@ -100,25 +100,25 @@ namespace Microsoft.Azure.WebJobs.Script
             return true;
         }
 
-        private List<FunctionMetadata> GetMetadataFromCustomIndexers()
+        private List<FunctionMetadata> GetMetadataFromCustomProviders()
         {
             var metadataList = new List<FunctionMetadata>();
 
-            foreach (var indexer in _indexers)
+            foreach (var provider in _functionProviders)
             {
-                metadataList.AddRange(indexer.GetFunctionMetadata());
+                metadataList.AddRange(provider.GetFunctionMetadata());
             }
 
             return metadataList;
         }
 
-        private Dictionary<string, ICollection<string>> GetErrorsFromCustomIndexers()
+        private Dictionary<string, ICollection<string>> GetErrorsFromCustomProviders()
         {
             var errorList = new Dictionary<string, ICollection<string>>();
 
-            foreach (var indexer in _indexers)
+            foreach (var provider in _functionProviders)
             {
-                indexer.GetFunctionErrors().ToList().ForEach(kvp => errorList[kvp.Key] = kvp.Value);
+                provider.GetFunctionErrors().ToList().ForEach(kvp => errorList[kvp.Key] = kvp.Value);
             }
 
             return errorList;

@@ -1,5 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <Import Project="..\..\build\common.props" />
+    <PropertyGroup>
+    <PackageId>Microsoft.Azure.WebJobs.Script.Abstractions</PackageId>
+    <PackageIconUrl>https://raw.githubusercontent.com/Azure/azure-webjobs-sdk/dev/webjobs.png</PackageIconUrl>
+    <AssemblyName>Microsoft.Azure.WebJobs.Script.Abstractions</AssemblyName>
+    <RootNamespace>Microsoft.Azure.WebJobs.Script.Abstractions</RootNamespace>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <StyleCopTreatErrorsAsWarnings>false</StyleCopTreatErrorsAsWarnings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>

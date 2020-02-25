@@ -5,21 +5,22 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Text;
+using Microsoft.Azure.WebJobs.Script.Description;
 
-namespace Microsoft.Azure.WebJobs.Script.Description
+namespace Microsoft.Azure.WebJobs.Script.Abstractions
 {
-    public interface IFunctionIndexer
+    public interface IFunctionProvider
     {
         /// <summary>
-        /// Gets any indexing error for all functions that may be in errors
+        /// Gets any function errors that may occur as part of the provider context
         /// </summary>
-        /// <returns> A mapping of function name to the list of errors</returns>
+        /// <returns> An IDictionary of function name to the list of errors</returns>
         IDictionary<string, ICollection<string>> GetFunctionErrors();
 
         /// <summary>
-        /// Gets all function metadata that this indexer knows about
+        /// Gets all function metadata that this provider knows about
         /// </summary>
-        /// <returns>A list of indexed FunctionMetadata</returns>
+        /// <returns>An IEnumerable of FunctionMetadata</returns>
         IEnumerable<FunctionMetadata> GetFunctionMetadata();
     }
 }
